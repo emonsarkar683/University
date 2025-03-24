@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>University Finder</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      padding: 20px;
+    }
+    .container {
+      max-width: 700px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    h1 {
+      text-align: center;
+    }
+    button {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      margin: 10px 0;
+      background-color: #007BFF;
+      border: none;
+      color: #fff;
+      font-size: 16px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .results {
+      margin-top: 20px;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>University Finder</h1>
+    <p>This tool fetches a worldwide list of universities (with details) via the Gemini API and allows you to download the JSON data.</p>
+    <button id="searchButton">Generate University List</button>
+    <button id="downloadButton" style="display:none;">Download JSON</button>
+    <div class="results" id="results"></div>
+  </div>
+
+  <script>
+    const API_KEY = "AIzaSyCt5oVGlRBaYdWygmDd4O5DvLO52SVQBuE"; // Your provided Gemini API key
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+
+    document.getElementById("searchButton").addEventListener("click", searchUniversities);
+    document.getElementById("downloadButton").addEventListener("click", downloadJSON);
+
+    let generatedJSON = null; // Will store the generated JSON data
+
+    async function searchUniversities() {
+      document.getElementById("results").innerHTML = "<p>Loading...</p>";
+      document.getElementById("downloadButton").style.display = "none";
+
+      // Construct the prompt to generate JSON of universities worldwide.
+      const promptText = `Generate a JSON array of university objects for universities all over the world. Each object must include the keys:
+- name
+- tuition
+- location
+- deadline
+- program
+- IELTS
+- budget
+
+Return only the JSON array.`;
+
+      // Build the request body as required by the Gemini API.
+      const requestBody = {
+        contents: [
+          {
+            parts: [
+              {
+                text: promptText
+              }
+            ]
+          }
+        ]
+      };
+
+      try {
+        const response = await fetch(API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+          throw new Error(`API request failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Assuming the output text is in candidates[0].output.text
+        // Adjust this extraction as per the actual API response format.
+        const outputText = data.candidates && data.candidates[0] && data.candidates[0].output && data.candidates[0].output.text;
+        if (!outputText) {
+          throw new Error("No output text found in API response.");
+        }
+
+        let universities;
+        try {
+          universities = JSON.parse(outputText);
+        } catch (parseError) {
+          // If parsing fails, display the raw output for debugging
+          document.getElementById("results").innerHTML = `<pre>Error parsing JSON response:\n${outputText}</pre>`;
+          return;
+        }
+
+        // Save the generated JSON for download.
+        generatedJSON = universities;
+
+        displayResults(universities);
+        document.getElementById("downloadButton").style.display = "block";
+      } catch (error) {
+        console.error("Error:", error);
+        document.getElementById("results").innerHTML = `<p>Error: ${error.message}</p>`;
+      }
+    }
+
+    function displayResults(universities) {
+      const resultsDiv = document.getElementById("results");
+      resultsDiv.innerHTML = "<h2>University Results</h2>";
+
+      if (Array.isArray(universities)) {
+        universities.forEach((uni, index) => {
+          const item = document.createElement("div");
+          item.style.padding = "10px";
+          item.style.borderBottom = "1px solid #eee";
+          item.innerHTML = `<strong>${uni.name || "N/A"}</strong><br>
+                            Tuition: ${uni.tuition || "N/A"}<br>
+                            Location: ${uni.location || "N/A"}<br>
+                            Deadline: ${uni.deadline || "N/A"}<br>
+                            Program: ${uni.program || "N/A"}<br>
+                            IELTS: ${uni.IELTS || "N/A"}<br>
+                            Budget: ${uni.budget || "N/A"}`;
+          resultsDiv.appendChild(item);
+        });
+      } else {
+        resultsDiv.innerHTML += "<pre>" + JSON.stringify(universities, null, 2) + "</pre>";
+      }
+    }
+
+    function downloadJSON() {
+      if (!generatedJSON) return;
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(generatedJSON, null, 2));
+      const downloadAnchorNode = document.createElement("a");
+      downloadAnchorNode.setAttribute("href", dataStr);
+      downloadAnchorNode.setAttribute("download", "universities.json");
+      document.body.appendChild(downloadAnchorNode); // required for Firefox
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+    }
+  </script>
+</body>
+</html>
